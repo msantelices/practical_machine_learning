@@ -1,0 +1,114 @@
+---
+title: "Practical Machine Learning"
+author: "Mauricio Santelices"
+date: "15-02-2021"
+output: html_document
+---
+
+## Summary
+
+We will build a model to predict if a user of a user of a device such as Jawbone Up, Nike FuelBand, and Fitbit is lifting weights.
+
+The dataset consists on 5 classes:
+
+ - Class A: Subject lifting weights exactly according to the specification
+ - Class B: Throwing the elbow to the front
+ - Class C: Lifting the dumbbell halfway
+ - Class D: Lowering the dumbbell halfway
+ - Class E: Throwing the hips to the front
+
+For more details, the URL of the original dataset is: <http://groupware.les.inf.puc-rio.br/har>
+
+
+## Getting data
+
+```{r}
+if(!file.exists("pml-training.csv")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv", method = 'curl')
+}
+dataset <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+
+if(!file.exists("pml-testing.csv")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv", method = 'curl')
+}
+validation <- read.csv("pml-testing.csv")
+```
+
+
+## Data preprocessing
+
+Import packages and set seed:
+
+```{r}
+library(caret)
+library(randomForest)
+
+set.seed(1756)
+```
+
+
+## Data partition
+
+70% of the data will be the training set and the rest will be the testing set.
+
+```{r}
+inTrain <- createDataPartition(y = dataset$classe, p = 0.7, list = FALSE)
+training <- dataset[inTrain, ]
+testing <- dataset[-inTrain, ]
+```
+
+Eliminate the NA entries.
+
+```{r}
+naCols <- sapply(training, function(x) {sum(is.na(x))})
+colsNA <- names(naCols[naCols > 0])
+training <- training[, !names(training) %in% colsNA]
+names(training)
+
+training <- training[, !names(training) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")]
+```
+
+Remove NAs in the validation set:
+
+```{r}
+naCols <- sapply(validation, function(x) {sum(is.na(x))})
+colsNA <- names(naCols[naCols > 0])
+validation <- validation[, !names(validation) %in% colsNA] 
+
+validation <- validation[, !names(validation) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")]
+```
+
+
+And for the testing set:
+
+```{r}
+naCols <- sapply(testing, function(x) {sum(is.na(x))})
+colsNA <- names(naCols[naCols > 0])
+testing <- testing[, !names(testing) %in% colsNA]
+
+testing <- testing[, !names(testing) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")]
+```
+
+
+## Building the model
+
+We will build a Random Forest:
+
+```{r acc}
+training$classe <- as.factor(training$classe)
+testing$classe <- as.factor(testing$classe)
+
+model <- randomForest(classe ~ .,   data=training, ntree = 50)
+predictions <- predict(model, testing)
+confusionMatrix(predictions, testing$classe)
+modelAcc <- confusionMatrix(predictions, testing$classe)$overall[[1]]
+```
+
+Our model is `r modelAcc` accurate.
+
+Now, we will predict the unknown classes of the validation set.
+
+```{r}
+predictions <- predict(model, validation)
+predictions
+```
